@@ -1,0 +1,4 @@
+student_id,name,parent_email,image_path,status
+S001,Kent,navarro@gmail.com,student_images/kent.jpg,active
+S002,Avril,ilustre@gmail.com,student_images/avril.jpg,active
+S003,Archie,benoya@gmail.com,student_images/archie.jpg,active

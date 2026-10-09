@@ -1,0 +1,64 @@
+# Python virtual environments
+.venv/
+venv/
+.venv310/
+venv_310/
+backend/venv_310/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environment files
+.env
+.env.*
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Local app/runtime artifacts
+*.db
+*.log
+*.pkl
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.gif
+*.mp4
+*.mov
+*.avi
+*.wav
+*.json
+*.jsonl
+
+# Dart / Flutter generated files
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep source files tracked
+!README.md
+!QUICK_START.md
+!backend/**/*.py
+!backend/**/*.sql
+!backend/**/*.yaml
+!backend/**/*.yml
+!backend/**/*.json
+!backend/**/*.xml
+!backend/**/*.md
+!backend/**/*.sh
+!backend/**/*.bat
+!frontend/**/*.js
+!frontend/**/*.jsx
+!frontend/**/*.css
+!frontend/**/*.html
+!face_recognition_app/**

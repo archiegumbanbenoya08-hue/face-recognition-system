@@ -1,0 +1,8 @@
+name: face_recognition_api_service
+description: Dart helper for communicating with the face recognition backend
+
+environment:
+  sdk: '>=2.19.0 <3.0.0'
+
+dependencies:
+  http: ^0.13.0
