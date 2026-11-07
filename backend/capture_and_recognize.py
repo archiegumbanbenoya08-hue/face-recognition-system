@@ -8,6 +8,7 @@ import pickle
 import sqlite3
 import datetime
 import numpy as np
+from camera import configure_camera_window
 
 try:
     import face_recognition
@@ -263,6 +264,8 @@ if __name__ == "__main__":
     last_capture_time = 0
 
     print_instructions(event_type)
+    window_name = f"Campus Monitor - {event_type.upper()}"
+    configure_camera_window(window_name)
 
     # 5. Main Loop
     while True:
@@ -304,13 +307,23 @@ if __name__ == "__main__":
                 overlay_text = "Face not registered. Please register this student first."
             cv2.putText(frame, overlay_text, (10, frame_h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
-        cv2.imshow(f"Campus Monitor - {event_type.upper()}", frame)
+        cv2.imshow(window_name, frame)
 
         # --- Automatic capture whenever any face is visible and enough time passed ---
         if len(faces) > 0 and (time.time() - last_capture_time) > AUTO_CAPTURE_INTERVAL_SEC:
             print(f"[{time.strftime('%H:%M:%S')}] Auto capturing frame for {event_type}...")
             result = recognize(frame, api_url)
             print("Result:", result)
+            if (
+                result.get("status") == "Error"
+                and "no module named 'insightface'" in str(result.get("detail", "")).lower()
+            ):
+                print(
+                    "[ERROR] The API server is running with Python that does not have InsightFace. "
+                    "Stop the API and restart it from the backend folder with "
+                    r".\venv_310\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000"
+                )
+                break
             if result.get("status") == "Not Recognized":
                 print("[INFO] Student is not yet registered. Please register the student first.")
             last_result = result

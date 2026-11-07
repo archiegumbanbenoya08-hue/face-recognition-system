@@ -1,39 +1,28 @@
+import importlib
 import os
 import shutil
 import json
 import smtplib
 import datetime
+import sys
+from contextlib import asynccontextmanager
 from email.mime.text import MIMEText
 import numpy as np
 import cv2
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from encoding import FaceEncoder, EncodingStorage
+from face_engine import cosine_similarity, initialize_face_engine
 from database import (
     save_student, get_students, save_campus_log, create_tables, 
     get_parent_email, create_parent, get_parent, get_entry_exit_logs
 )
 from event_logger import log_event, read_all_events
 
-try:
-    import face_recognition as fr
-    FR_AVAILABLE = True
-    print("[OK] face_recognition available in main API")
-except ImportError:
-    FR_AVAILABLE = False
-    print("[WARN] face_recognition not installed in main API")
-
-
-def compare_embedding(known_embedding, query_embedding, distance_threshold=0.6):
-    if FR_AVAILABLE:
-        try:
-            matches = fr.compare_faces([known_embedding], query_embedding, tolerance=distance_threshold)
-            distances = fr.face_distance([known_embedding], query_embedding)
-            return matches[0], float(distances[0])
-        except Exception as e:
-            print(f"[WARN] face_recognition compare failed: {e}")
-    distance = np.linalg.norm(known_embedding - query_embedding)
-    return (distance < distance_threshold), float(distance)
+def compare_embedding(known_embedding, query_embedding, distance_threshold=0.4):
+    similarity = cosine_similarity(known_embedding, query_embedding)
+    distance = 1.0 - similarity
+    return distance < distance_threshold, float(distance)
 
 
 def send_parent_notification(parent_email: str, student_name: str, event_type: str, location: str):
@@ -79,10 +68,25 @@ def send_parent_notification(parent_email: str, student_name: str, event_type: s
         return False
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        importlib.import_module("insightface.app")
+    except ModuleNotFoundError as error:
+        raise RuntimeError(
+            "InsightFace is unavailable to the API server "
+            f"(Python: {sys.executable}). Start the server with "
+            r".\venv_310\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000"
+        ) from error
+    initialize_face_engine()
+    yield
+
+
 app = FastAPI(
     title="Face Recognition Campus Monitoring",
     version="1.0.0",
     description="API for campus entry/exit monitoring",
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -93,6 +97,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 UPLOAD_FOLDER = "student_images"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -185,7 +190,7 @@ async def recognize(event_type: str, file: UploadFile = File(...), location: str
         
         for student in students:
             try:
-                saved_embedding = EncodingStorage.deserialize_encoding(student["face_encoding"])
+                saved_embedding = EncodingStorage.load_encoding(student["face_encoding"])
                 full_name = f"{student['first_name']} {student['last_name']}"
                 print(f"   Comparing with {full_name}: stored embedding shape {saved_embedding.shape}")
                 
@@ -270,7 +275,21 @@ async def get_all_students():
     """Get all active students"""
     try:
         students = get_students()
-        return {"students": students, "count": len(students)}
+        display_fields = (
+            "student_id",
+            "first_name",
+            "last_name",
+            "grade_level",
+            "section",
+            "parent_email",
+            "image_path",
+            "status",
+        )
+        display_students = [
+            {field: student.get(field) for field in display_fields}
+            for student in students
+        ]
+        return {"students": display_students, "count": len(display_students)}
     except Exception as e:
         print(f"Error retrieving students: {e}")
         return {"status": "Error", "detail": str(e)}
@@ -315,7 +334,7 @@ async def recognize_local(event_type: str, location: str = "Main Gate"):
         
         for student in students:
             try:
-                saved_embedding = EncodingStorage.deserialize_encoding(student["face_encoding"])
+                saved_embedding = EncodingStorage.load_encoding(student["face_encoding"])
                 full_name = f"{student['first_name']} {student['last_name']}"
                 print(f"   Comparing with {full_name}: stored embedding shape {saved_embedding.shape}")
                 

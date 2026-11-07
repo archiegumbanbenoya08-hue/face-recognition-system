@@ -41,11 +41,6 @@ const StudentsManagement = ({ students, onUpdate, user }) => {
     setError('');
 
     try {
-      const data = new FormData();
-      Object.keys(formData).forEach(key => {
-        if (formData[key]) data.append(key, formData[key]);
-      });
-
       if (editingStudent) {
         await axios.put(`http://localhost:8000/api/students/${editingStudent.student_id}`, {
           first_name: formData.first_name,
@@ -57,12 +52,30 @@ const StudentsManagement = ({ students, onUpdate, user }) => {
           headers: { Authorization: `Bearer ${user.token}` }
         });
       } else {
-        await axios.post('http://localhost:8000/api/students', data, {
+        const selectedParent = parents.find(
+          parent => String(parent.parent_id) === String(formData.parent_id)
+        );
+        if (!selectedParent) {
+          throw new Error('Please select a valid parent.');
+        }
+
+        const registrationData = new FormData();
+        registrationData.append('student_id', formData.student_id);
+        registrationData.append('first_name', formData.first_name);
+        registrationData.append('last_name', formData.last_name);
+        registrationData.append('grade_level', formData.grade_level);
+        registrationData.append('section', formData.section);
+        registrationData.append('parent_email', selectedParent.email);
+        registrationData.append('file', formData.photo);
+
+        const response = await axios.post('http://localhost:8000/register/', registrationData, {
           headers: {
-            Authorization: `Bearer ${user.token}`,
-            'Content-Type': 'multipart/form-data'
+            Authorization: `Bearer ${user.token}`
           }
         });
+        if (response.data?.status === 'Error') {
+          throw new Error(response.data.detail || 'Student registration failed.');
+        }
       }
 
       setShowModal(false);
@@ -70,7 +83,7 @@ const StudentsManagement = ({ students, onUpdate, user }) => {
       resetForm();
       onUpdate();
     } catch (err) {
-      setError(err.response?.data?.error || 'Operation failed');
+      setError(err.response?.data?.detail || err.response?.data?.error || err.message || 'Operation failed');
     } finally {
       setLoading(false);
     }

@@ -253,6 +253,10 @@ Student is ready for face recognition!
 
 For faster registration without multiple poses:
 
+The script checks for InsightFace before opening the camera. If it is missing from
+the current Python environment and `backend/venv_310` exists, the script restarts
+automatically with that environment.
+
 ```bash
 python backend/register_student_webcam.py `
   --student-id 2025-002 `
@@ -263,7 +267,39 @@ python backend/register_student_webcam.py `
   --parent-email john.doe@example.com
 ```
 
-This captures 1 sample only.
+This captures front, left, right, up, down, and blink poses, then stores their
+average face embedding in the `student.face_encoding` database field.
+
+### Recognize a registered student
+
+Registration and recognition share the active student records in MySQL. Keep
+the API running while using the capture client:
+
+1. In a terminal opened in `backend`, start the API:
+
+   ```powershell
+   .\run.bat
+   ```
+
+2. In another terminal, register the student:
+
+   ```powershell
+   .\venv_310\Scripts\python.exe .\register_student_webcam.py
+   ```
+
+3. After registration finishes, capture and recognize the student:
+
+   ```powershell
+   .\venv_310\Scripts\python.exe .\capture_and_recognize.py ENTRY
+   ```
+
+The API loads the InsightFace model before it begins accepting requests, so
+wait for the server startup message before launching the capture client. The
+capture client sends webcam frames to `/recognize/ENTRY`; the API compares them
+with the embeddings saved by registration and records a campus event for a
+match. For local recognition without campus event logging, run
+`.\venv_310\Scripts\python.exe .\webcam_recognizer.py`; it also loads registered
+students from MySQL.
 
 ---
 

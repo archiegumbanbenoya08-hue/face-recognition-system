@@ -1,45 +1,42 @@
 #!/usr/bin/env python3
 """
-Webcam Face Recognition - No Database Required
-Simple and straightforward recognition from stored face images
+Webcam face recognition using students registered in the database
 """
 
 import cv2
-import numpy as np
 import os
-from face_engine import get_embedding, compare_faces
+from database import get_students
+from camera import configure_camera_window
+from encoding import EncodingStorage
+from face_engine import cosine_similarity, get_embedding
+
 
 def load_known_faces():
-    """Load known faces from student_images directory"""
+    """Load active students and their registered face embeddings from MySQL."""
     known_faces = {}
-    image_dir = "student_images"
+    students = get_students()
+    print(f"Loading registered students from MySQL ({len(students)} active records)...")
 
-    if not os.path.exists(image_dir):
-        print(f"Error: {image_dir} directory not found")
-        return None
-
-    print(f"Loading faces from {image_dir}...")
-    for filename in sorted(os.listdir(image_dir)):
-        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-            student_id = os.path.splitext(filename)[0]
-            image_path = os.path.join(image_dir, filename)
-
-            try:
-                embedding = get_embedding(image_path)
-                known_faces[student_id] = embedding
-                print(f"  OK: {student_id}")
-            except Exception as e:
-                print(f"  SKIP: {student_id} - {e}")
+    for student in students:
+        student_id = student["student_id"]
+        try:
+            embedding = EncodingStorage.load_encoding(student["face_encoding"])
+            if embedding.size == 0:
+                raise ValueError("empty face embedding")
+            known_faces[student_id] = embedding
+            print(f"  OK: {student_id} - {student['first_name']} {student['last_name']}")
+        except (KeyError, TypeError, ValueError) as error:
+            print(f"  SKIP: {student_id} - invalid stored embedding: {error}")
 
     return known_faces if known_faces else None
 
-def recognize_from_embedding(embedding, known_faces, threshold=0.3):
+def recognize_from_embedding(embedding, known_faces, threshold=0.4):
     """Find best match for an embedding"""
     best_id = None
     best_distance = float('inf')
 
     for student_id, known_emb in known_faces.items():
-        distance = np.linalg.norm(embedding - known_emb)
+        distance = 1.0 - cosine_similarity(embedding, known_emb)
         if distance < best_distance:
             best_distance = distance
             best_id = student_id
@@ -68,12 +65,12 @@ def main():
     # Load faces
     known_faces = load_known_faces()
     if not known_faces:
-        print("No valid face images found!")
+        print("No valid registered student embeddings found in MySQL.")
         return
 
     print(f"\nLoaded {len(known_faces)} faces")
     print("Starting webcam...")
-    print("Press 'q' to quit, space to capture")
+    print("Press 'q' to quit")
 
     # Try different camera backends
     backends = [
@@ -109,6 +106,8 @@ def main():
 
     frame_count = 0
     recognition_interval = 10  # Recognize every 10 frames
+    window_name = "Face Recognition"
+    configure_camera_window(window_name)
 
     try:
         while True:
@@ -117,7 +116,7 @@ def main():
                 break
 
             frame_count += 1
-            h, w = frame.shape[:2]
+            h = frame.shape[0]
 
             # Recognize faces periodically to avoid slowdown
             result_text = "Calculating..."
@@ -142,7 +141,7 @@ def main():
             cv2.putText(frame, result_text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, result_color, 2)
             cv2.putText(frame, "Press Q to quit", (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
-            cv2.imshow("Face Recognition", frame)
+            cv2.imshow(window_name, frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

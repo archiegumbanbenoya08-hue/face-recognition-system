@@ -7,28 +7,7 @@ import numpy as np
 import json
 from typing import List, Dict, Optional
 import os
-
-# Try to use face_recognition library for better accuracy
-try:
-    import face_recognition as fr
-    FR_AVAILABLE = True
-    print("[OK] face_recognition library available")
-except ImportError:
-    FR_AVAILABLE = False
-    print("[WARN] face_recognition library not available")
-
-try:
-    from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
-    from tensorflow.keras.preprocessing import image
-    from tensorflow.keras.models import Model
-    
-    base_model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
-    tf_model = Model(inputs=base_model.input, outputs=base_model.output)
-    TF_AVAILABLE = True
-    print("[OK] TensorFlow MobileNetV2 model loaded")
-except Exception as e:
-    TF_AVAILABLE = False
-    print(f"[WARN] TensorFlow not available: {e}")
+from face_engine import cosine_similarity, get_embedding
 
 
 class FaceEncoder:
@@ -49,31 +28,12 @@ class FaceEncoder:
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image not found: {image_path}")
         
-        # Try face_recognition first (more accurate)
-        if use_fr and FR_AVAILABLE:
-            try:
-                image = fr.load_image_file(image_path)
-                encodings = fr.face_encodings(image)
-                if len(encodings) > 0:
-                    return encodings[0]  # Return first face
-            except Exception as e:
-                print(f"[WARN] face_recognition failed: {e}")
-        
-        # Fallback to TensorFlow
-        if TF_AVAILABLE:
-            try:
-                img = image.load_img(image_path, target_size=(224, 224))
-                img_array = image.img_to_array(img)
-                img_array = np.expand_dims(img_array, axis=0)
-                img_array = preprocess_input(img_array)
-                embedding = tf_model.predict(img_array, verbose=0)
-                return embedding.flatten()
-            except Exception as e:
-                print(f"[WARN] TensorFlow failed: {e}")
-        
-        # Fallback to mock encoding
-        print(f"[WARN] Using mock encoding for: {image_path}")
-        return np.random.rand(128)
+        try:
+            return get_embedding(image_path)
+        except ValueError as error:
+            if str(error) == "No face detected in image":
+                return None
+            raise
     
     @staticmethod
     def encode_batch(image_paths: List[str]) -> Dict[str, np.ndarray]:
@@ -179,7 +139,7 @@ class FaceComparison:
     @staticmethod
     def distance(encoding1: np.ndarray, encoding2: np.ndarray) -> float:
         """
-        Calculate Euclidean distance between encodings.
+        Calculate cosine distance between normalized face embeddings.
         
         Args:
             encoding1: First face encoding
@@ -188,7 +148,7 @@ class FaceComparison:
         Returns:
             Distance value
         """
-        return np.linalg.norm(encoding1 - encoding2)
+        return 1.0 - cosine_similarity(encoding1, encoding2)
     
     @staticmethod
     def similarity(encoding1: np.ndarray, encoding2: np.ndarray) -> float:
@@ -202,15 +162,13 @@ class FaceComparison:
         Returns:
             Similarity score (0-1)
         """
-        norm1 = encoding1 / np.linalg.norm(encoding1)
-        norm2 = encoding2 / np.linalg.norm(encoding2)
-        return np.dot(norm1, norm2)
+        return cosine_similarity(encoding1, encoding2)
     
     @staticmethod
     def compare_faces(
         encoding1: np.ndarray,
         encoding2: np.ndarray,
-        distance_threshold: float = 0.6
+        distance_threshold: float = 0.4
     ) -> bool:
         """
         Compare two face encodings.
@@ -230,7 +188,7 @@ class FaceComparison:
     def find_best_match(
         query_encoding: np.ndarray,
         reference_encodings: Dict[str, np.ndarray],
-        distance_threshold: float = 0.6
+        distance_threshold: float = 0.4
     ) -> Optional[tuple]:
         """
         Find best matching face in references.
@@ -265,10 +223,7 @@ if __name__ == "__main__":
     
     # Test encoding generation
     print("Testing encoding generation...")
-    if TF_AVAILABLE or FR_AVAILABLE:
-        print("✓ Encoding libraries available")
-    else:
-        print("⚠ Using mock encodings for testing")
+    print("InsightFace is loaded on the first encoding request.")
     
     # Test encoding serialization
     test_encoding = np.random.rand(128)

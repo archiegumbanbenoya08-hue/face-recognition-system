@@ -1,13 +1,45 @@
 #!/usr/bin/env python3
 import argparse
+import importlib
 import os
+import subprocess
 import sys
 import time
+
+
+def ensure_insightface_environment():
+    try:
+        importlib.import_module("insightface.app")
+        return
+    except ModuleNotFoundError as error:
+        venv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv_310")
+        scripts_dir = "Scripts" if sys.platform.startswith("win") else "bin"
+        python_executable = "python.exe" if sys.platform.startswith("win") else "python"
+        venv_python = os.path.join(venv_dir, scripts_dir, python_executable)
+
+        current_python = os.path.normcase(os.path.realpath(sys.executable))
+        target_python = os.path.normcase(os.path.realpath(venv_python))
+        if os.path.isfile(venv_python) and current_python != target_python:
+            print(
+                f"InsightFace is unavailable in this Python. Restarting with {venv_python}",
+                flush=True,
+            )
+            result = subprocess.run(
+                [venv_python, os.path.abspath(__file__), *sys.argv[1:]],
+                check=False,
+            )
+            raise SystemExit(result.returncode)
+
+        raise RuntimeError(
+            "Could not import InsightFace. Install backend/requirements.txt in this environment "
+            "or use backend/venv_310."
+        ) from error
 
 import cv2
 import numpy as np
 
 from database import create_parent, get_parent, get_student_by_id, save_student
+from camera import configure_camera_window
 from face_engine import get_embedding
 
 UPLOAD_FOLDER = "student_images"
@@ -93,6 +125,8 @@ def capture_pose_images(student_id, camera_index=0):
     face_cascade, profile_cascade, eye_cascade = load_cascades()
     cap = open_camera(camera_index)
     captured_paths = []
+    window_name = "Register Student - Pose Capture"
+    configure_camera_window(window_name)
     try:
         for pose_name, pose_label in POSES:
             stable_count = 0
@@ -141,7 +175,7 @@ def capture_pose_images(student_id, camera_index=0):
                     cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
                 cv2.putText(frame, pose_label, (10, frame_h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
                 cv2.putText(frame, "Press C to capture manually when pose is correct.", (10, frame_h - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-                cv2.imshow("Register Student - Pose Capture", frame)
+                cv2.imshow(window_name, frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     raise SystemExit("Capture cancelled by user.")
@@ -234,7 +268,8 @@ def register_student(args):
         if not os.path.exists(args.image):
             raise FileNotFoundError(f"Image file not found: {args.image}")
         image_path = os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg")
-        os.replace(args.image, image_path)
+        if os.path.abspath(args.image) != os.path.abspath(image_path):
+            os.replace(args.image, image_path)
         image_paths = [image_path]
         print(f"Copied image to {image_path}")
     else:
@@ -276,6 +311,7 @@ def parse_args():
 
 if __name__ == "__main__":
     try:
+        ensure_insightface_environment()
         args = parse_args()
         register_student(args)
     except Exception as e:

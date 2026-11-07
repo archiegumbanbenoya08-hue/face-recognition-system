@@ -15,10 +15,10 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const fetchStudents = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/students', {
+      const response = await axios.get('http://localhost:8000/students/', {
         headers: { Authorization: `Bearer ${user.token}` }
       });
-      setStudents(response.data);
+      setStudents(response.data.students || []);
     } catch (error) {
       console.error('Error fetching students:', error);
     }

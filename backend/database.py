@@ -28,7 +28,7 @@ def get_students():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT student_id, first_name, last_name, grade_level, section, parent_email, face_encoding 
+            SELECT student_id, first_name, last_name, grade_level, section, parent_email, image_path, status, face_encoding
             FROM student 
             WHERE status='active'
         """)

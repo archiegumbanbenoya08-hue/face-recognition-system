@@ -15,14 +15,7 @@ from app.schemas.student import (
     RecognitionResponseSchema,
 )
 
-try:
-    from face_engine import get_embedding, compare_faces
-except ImportError:
-    print("Warning: face_engine not available, using mock functions")
-    def get_embedding(path):
-        return np.random.rand(128)
-    def compare_faces(emb1, emb2):
-        return np.linalg.norm(emb1 - emb2) < 0.6
+from face_engine import get_embedding, compare_faces
 
 router = APIRouter(prefix="/api/face", tags=["Face Recognition"])
 

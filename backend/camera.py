@@ -9,6 +9,28 @@ import os
 from typing import Tuple, Optional, List
 import time
 
+
+def configure_camera_window(window_name: str) -> None:
+    """Place an OpenCV preview at half the primary monitor size, centered."""
+    try:
+        import ctypes
+
+        screen_width = ctypes.windll.user32.GetSystemMetrics(0)
+        screen_height = ctypes.windll.user32.GetSystemMetrics(1)
+    except (AttributeError, OSError):
+        screen_width, screen_height = 1920, 1080
+
+    window_width = max(1, screen_width // 2)
+    window_height = max(1, screen_height // 2)
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, window_width, window_height)
+    cv2.moveWindow(
+        window_name,
+        (screen_width - window_width) // 2,
+        (screen_height - window_height) // 2,
+    )
+
+
 class FaceDetector:
     """Face detection using Haar Cascade"""
     
@@ -124,6 +146,8 @@ class CameraCapture:
         cap = self.open_camera()
         last_capture_time = 0
         instruction = self.instructions.get(instruction_type, 'Look at the camera')
+        window_name = "Face Registration - Capture"
+        configure_camera_window(window_name)
         
         try:
             while True:
@@ -228,7 +252,7 @@ class CameraCapture:
                     1
                 )
                 
-                cv2.imshow("Face Registration - Capture", frame)
+                cv2.imshow(window_name, frame)
                 
                 # Auto-capture if conditions met
                 if (auto_capture and is_well_positioned and 

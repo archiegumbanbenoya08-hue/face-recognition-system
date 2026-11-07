@@ -28,12 +28,17 @@ REM Activate virtual environment
 echo.
 echo 🔌 Activating virtual environment...
 call venv_310\Scripts\activate.bat
+set "VENV_PYTHON=%CD%\venv_310\Scripts\python.exe"
 
 REM Install/upgrade dependencies
 echo.
 echo 📥 Installing dependencies...
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+"%VENV_PYTHON%" -m pip install --upgrade pip
+"%VENV_PYTHON%" -m pip install -r requirements.txt
+
+REM InsightFace's augmentation dependency installs headless OpenCV; restore GUI support for cv2.imshow.
+"%VENV_PYTHON%" -m pip uninstall -y opencv-python-headless
+"%VENV_PYTHON%" -m pip install --no-deps --force-reinstall opencv-python==4.8.1.78
 
 REM Create .env file if it doesn't exist
 if not exist ".env" (
@@ -59,6 +64,6 @@ echo 📍 API URL: http://localhost:8000
 echo 📖 Documentation: http://localhost:8000/docs
 echo.
 
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+"%VENV_PYTHON%" -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 pause
